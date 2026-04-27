@@ -202,6 +202,35 @@ input[readonly]{cursor:default;}
 .ldot::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--red);animation:pulse 1.5s infinite;}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
 .fdiv{border:none;border-top:1px solid var(--border);margin:14px 0;}
+/* SEASON STATS */
+.ss-table{width:100%;border-collapse:collapse;font-size:12px;}
+.ss-table th{font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;padding:8px 10px;text-align:center;border-bottom:2px solid var(--border);cursor:pointer;white-space:nowrap;background:#fff;}
+.ss-table th:first-child{text-align:left;}
+.ss-table th:hover{color:var(--red);}
+.ss-table th.sort-active{color:var(--red);}
+.ss-table td{padding:9px 10px;text-align:center;border-bottom:1px solid rgba(204,0,0,0.06);vertical-align:middle;}
+.ss-table td:first-child{text-align:left;}
+.ss-table tr:hover td{background:rgba(204,0,0,0.03);cursor:pointer;}
+.ss-table tr:last-child td{border-bottom:none;}
+.ss-name{font-weight:700;font-size:13px;}
+.ss-num{font-family:'Bebas Neue',sans-serif;font-size:11px;color:var(--gold);margin-right:4px;}
+.ss-val{font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--red);}
+.ss-val.zero{color:#ccc;}
+.ss-wrap{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;overflow-x:auto;}
+/* BREAKDOWN */
+.bd-header{background:linear-gradient(135deg,var(--red),var(--red-dark));border-radius:12px;padding:18px;margin-bottom:14px;color:#fff;}
+.bd-name{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;}
+.bd-totals{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-top:12px;}
+.bd-stat{background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;}
+.bd-stat-v{font-family:'Bebas Neue',sans-serif;font-size:26px;line-height:1;}
+.bd-stat-l{font-size:8px;text-transform:uppercase;letter-spacing:1px;opacity:0.8;margin-top:2px;}
+.bd-match{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;}
+.bd-match-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.bd-opp{font-weight:700;font-size:13px;}
+.bd-date{font-size:10px;color:var(--muted);}
+.bd-score{font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--red);}
+.bd-chips{display:flex;gap:5px;flex-wrap:wrap;}
+.bd-chip{font-size:10px;font-weight:700;padding:3px 9px;border-radius:12px;}
 
 .filter-btn{padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.5px;border:1px solid rgba(180,0,0,0.2);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif;}
 .filter-btn:hover{border-color:var(--red);color:var(--red);}
@@ -396,8 +425,30 @@ input[readonly]{cursor:default;}
 
 <!-- STATS -->
 <div class="view" id="view-stats">
-  <div class="sh"><div class="st">Player Stats — This Match</div></div>
-  <div class="sq-grid" id="sq-grid"><div class="empty"><div class="empty-ico">📊</div>Start a match to see stats</div></div>
+  <div class="sh">
+    <div class="st">Season Stats</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:11px;color:var(--muted);">Sort by:</span>
+      <select id="stats-sort" onchange="renderSeasonStats()" style="width:auto;padding:5px 10px;font-size:11px;">
+        <option value="apps">Appearances</option>
+        <option value="goals">Goals</option>
+        <option value="assists">Assists</option>
+        <option value="saves">Saves</option>
+        <option value="tackles">Tackles</option>
+        <option value="name">Name</option>
+      </select>
+    </div>
+  </div>
+  <div id="season-stats-list"><div class="empty"><div class="empty-ico">📊</div>No saved matches yet — results will appear here after games are saved.</div></div>
+
+  <!-- PLAYER BREAKDOWN PANEL -->
+  <div id="stats-breakdown" style="display:none;margin-top:20px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <button class="btn btn-ghost btn-sm" onclick="closeStatsBreakdown()">← Back</button>
+      <div class="st" id="breakdown-title">Player Breakdown</div>
+    </div>
+    <div id="breakdown-body"></div>
+  </div>
 </div>
 
 <!-- REVIEW -->
@@ -766,7 +817,7 @@ async function loadMatchesFromDB(){
 function switchTab(t){
   document.querySelectorAll('.nav-tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));
   document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+t));
-  if(t==='stats') renderSquadStats();
+  if(t==='stats') renderSeasonStats();
   if(t==='profiles') renderProfiles();
   if(t==='saved') renderSaved();
   if(t==='review') renderReviewTab();
@@ -1144,17 +1195,108 @@ function updLiveStrip(){
   document.getElementById('ls-cn').textContent=ev.filter(e=>e.type==='corner').length;
 }
 
-// ═══ SQUAD STATS ═══
-function renderSquadStats(){
-  const grid=document.getElementById('sq-grid');
-  if(!G.players.length){grid.innerHTML=`<div class="empty"><div class="empty-ico"></div>Start a match first</div>`;return;}
-  const CLS={GK:'pos-gk',DEF:'pos-def',MID:'pos-mid',FWD:'pos-fwd',SUB:'pos-unk'};
-  grid.innerHTML=G.players.map(p=>{
-    const s=p.stats||{},pos=p.posQ[G.quarter-1]||'SUB',c=CLS[pos]||'pos-unk';
-    const rows=[['[G]',s.goals||0,'Goals'],['🅰',s.assists||0,'Asst'],['[S]',s.saves||0,'Saves'],['🎯',s.shotsOn||0,'On Tgt'],['💪',s.tacklesW||0,'Tackles'],['👟',s.clearancesG||0,'Clear']];
-    return`<div class="sqc"><div class="sqtop"><div class="sqnum">${p.number}</div><div><div class="sqname">${fname(p)}</div><span class="sqpos ${c}">${pos}</span></div></div>
-      <div class="sq-stats">${rows.map(([ic,v,l])=>`<div class="sqst"><div class="sqstv">${v}</div><div class="sqstl">${ic} ${l}</div></div>`).join('')}</div></div>`;
+// ═══ SEASON STATS ═══
+function renderSquadStats(){ renderSeasonStats(); }
+
+function getPlayerSeasonStats(matches){
+  const playerMap={};
+  (matches||[]).forEach(m=>{
+    const opp=m.match&&m.match.opp?m.match.opp:'Unknown';
+    const date=m.match&&m.match.date?m.match.date:'';
+    const score=m.score?m.score.home+' - '+m.score.away:'';
+    (m.players||[]).forEach(p=>{
+      const name=fname(p);
+      if(!playerMap[name]) playerMap[name]={firstName:p.firstName,lastName:p.lastName,number:p.number,apps:0,goals:0,assists:0,saves:0,shotsOn:0,shotsOff:0,tacklesW:0,clearancesG:0,corners:0,yellows:0,reds:0,penGoals:0,penMisses:0,pensConceded:0,matches:[]};
+      const pl=playerMap[name];const s=p.stats||{};
+      const played=p.posQ&&p.posQ.some(pos=>pos!=='SUB');
+      if(played)pl.apps++;
+      pl.goals+=(s.goals||0);pl.assists+=(s.assists||0);pl.saves+=(s.saves||0);
+      pl.shotsOn+=(s.shotsOn||0);pl.shotsOff+=(s.shotsOff||0);
+      pl.tacklesW+=(s.tacklesW||0);pl.clearancesG+=(s.clearancesG||0);
+      pl.corners+=(s.corners||0);pl.yellows+=(s.yellows||0);pl.reds+=(s.reds||0);
+      pl.penGoals+=(s.penGoals||0);pl.penMisses+=(s.penMisses||0);pl.pensConceded+=(s.pensConceded||0);
+      if(played||Object.values(s).some(v=>v>0)) pl.matches.push({opp,date,score,matchId:m.id,stats:{...s},played});
+    });
+  });
+  return Object.values(playerMap);
+}
+
+let _statsSortCol='goals';
+
+function renderSeasonStats(){
+  const container=document.getElementById('season-stats-list');
+  const breakdown=document.getElementById('stats-breakdown');
+  if(breakdown) breakdown.style.display='none';
+  if(container) container.style.display='block';
+  const matches=getSaved();
+  if(!matches.length){
+    if(container) container.innerHTML='<div class="empty"><div class="empty-ico">📊</div>No saved matches yet — stats will appear here after results are saved.</div>';
+    return;
+  }
+  const sortSel=document.getElementById('stats-sort');
+  const sortBy=sortSel?sortSel.value:_statsSortCol;
+  _statsSortCol=sortBy;
+  let players=getPlayerSeasonStats(matches);
+  players.sort((a,b)=>{
+    if(sortBy==='name') return (a.firstName+' '+a.lastName).localeCompare(b.firstName+' '+b.lastName);
+    if(sortBy==='apps') return b.apps-a.apps;
+    if(sortBy==='goals') return b.goals-a.goals;
+    if(sortBy==='assists') return b.assists-a.assists;
+    if(sortBy==='saves') return b.saves-a.saves;
+    if(sortBy==='tackles') return b.tacklesW-a.tacklesW;
+    return b.goals-a.goals;
+  });
+  const cols=[{key:'apps',label:'Apps'},{key:'goals',label:'Goals'},{key:'assists',label:'Ast'},{key:'saves',label:'Saves'},{key:'tacklesW',label:'Tkl'},{key:'clearancesG',label:'Clr'},{key:'shotsOn',label:'SoT'},{key:'yellows',label:'YC'},{key:'reds',label:'RC'}];
+  const rows=players.map(p=>{
+    const cells=cols.map(c=>{const v=p[c.key]||0;return`<td><span class="ss-val ${v===0?'zero':''}">${v}</span></td>`;}).join('');
+    const pname=(p.firstName+' '+p.lastName).trim();
+    return`<tr onclick="showPlayerBreakdown('${pname.replace(/'/g,"\'")}')"><td><span class="ss-num">${p.number}</span><span class="ss-name">${p.firstName} ${p.lastName}</span></td>${cells}</tr>`;
   }).join('');
+  const headers=cols.map(c=>`<th onclick="document.getElementById('stats-sort').value='${c.key}';renderSeasonStats()" class="${_statsSortCol===c.key?'sort-active':''}">${c.label}</th>`).join('');
+  if(container) container.innerHTML=`
+    <p style="font-size:11px;color:var(--muted);margin-bottom:10px;">Tap any player to see a match-by-match breakdown.</p>
+    <div class="ss-wrap"><table class="ss-table"><thead><tr>
+      <th onclick="document.getElementById('stats-sort').value='name';renderSeasonStats()" style="text-align:left;">Player</th>
+      ${headers}
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function showPlayerBreakdown(playerName){
+  const matches=getSaved();
+  const players=getPlayerSeasonStats(matches);
+  const p=players.find(x=>(x.firstName+' '+x.lastName).trim()===playerName);
+  if(!p)return;
+  document.getElementById('season-stats-list').style.display='none';
+  const breakdown=document.getElementById('stats-breakdown');
+  breakdown.style.display='block';
+  document.getElementById('breakdown-title').textContent=p.firstName+' '+p.lastName;
+  const totals=[{l:'Apps',v:p.apps},{l:'Goals',v:p.goals},{l:'Assists',v:p.assists},{l:'Saves',v:p.saves},{l:'Tackles',v:p.tacklesW},{l:'Clearances',v:p.clearancesG},{l:'Shots on T',v:p.shotsOn},{l:'Yellows',v:p.yellows},{l:'Reds',v:p.reds}].filter(s=>s.v>0);
+  const totalsHTML=totals.length?totals.map(s=>`<div class="bd-stat"><div class="bd-stat-v">${s.v}</div><div class="bd-stat-l">${s.l}</div></div>`).join(''):'<div style="font-size:12px;opacity:0.7;">No stats recorded yet</div>';
+  const matchRows=p.matches.length?p.matches.map(m=>{
+    const s=m.stats||{};const chips=[];
+    if(s.goals)chips.push(`<span class="bd-chip" style="background:rgba(204,0,0,.12);color:var(--red);">⚽ ${s.goals} goal${s.goals!==1?'s':''}</span>`);
+    if(s.assists)chips.push(`<span class="bd-chip" style="background:rgba(245,197,24,.2);color:#a07800;">🅰 ${s.assists} assist${s.assists!==1?'s':''}</span>`);
+    if(s.saves)chips.push(`<span class="bd-chip" style="background:rgba(245,197,24,.15);color:#a07800;">🧤 ${s.saves} save${s.saves!==1?'s':''}</span>`);
+    if(s.tacklesW)chips.push(`<span class="bd-chip" style="background:rgba(41,121,255,.12);color:#1a5fd4;">💪 ${s.tacklesW} tackle${s.tacklesW!==1?'s':''}</span>`);
+    if(s.clearancesG)chips.push(`<span class="bd-chip" style="background:rgba(41,121,255,.1);color:#1a5fd4;">👟 ${s.clearancesG} clearance${s.clearancesG!==1?'s':''}</span>`);
+    if(s.shotsOn)chips.push(`<span class="bd-chip" style="background:rgba(204,0,0,.08);color:var(--red);">🎯 ${s.shotsOn} on tgt</span>`);
+    if(s.yellows)chips.push(`<span class="bd-chip" style="background:rgba(245,197,24,.2);color:#a07800;">🟡 Yellow</span>`);
+    if(s.reds)chips.push(`<span class="bd-chip" style="background:rgba(204,0,0,.12);color:var(--red);">🔴 Red</span>`);
+    if(!chips.length&&m.played)chips.push(`<span style="font-size:11px;color:var(--muted);">Played — no stats recorded</span>`);
+    return`<div class="bd-match"><div class="bd-match-hdr"><div><div class="bd-opp">vs ${m.opp}</div><div class="bd-date">${m.date}</div></div><div class="bd-score">${m.score}</div></div><div class="bd-chips">${chips.join('')}</div></div>`;
+  }).join(''):'<div class="empty" style="padding:20px;">No match data found.</div>';
+  document.getElementById('breakdown-body').innerHTML=`
+    <div class="bd-header">
+      <div class="bd-name"><span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:rgba(255,255,255,0.6);">#${p.number}</span> ${p.firstName} ${p.lastName}</div>
+      <div class="bd-totals">${totalsHTML}</div>
+    </div>
+    <div class="sh" style="margin-top:4px;"><div class="st" style="font-size:14px;">Match by Match</div></div>
+    ${matchRows}`;
+}
+
+function closeStatsBreakdown(){
+  document.getElementById('stats-breakdown').style.display='none';
+  document.getElementById('season-stats-list').style.display='block';
 }
 
 // ═══ PROFILES ═══
