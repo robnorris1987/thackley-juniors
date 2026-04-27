@@ -997,7 +997,7 @@ function openEModal(type){
   document.getElementById('mo-title').textContent=cfg.title;
   showEl('mw-player',cfg.player);
   if(cfg.player){
-    const pool=cfg.gkOnly?G.players.filter(p=>p.onPitch&&p.posQ[G.quarter-1]==='GK'):G.players.filter(p=>p.onPitch);
+    const pool=curType==='sub'?G.players.filter(p=>!p.onPitch):cfg.gkOnly?G.players.filter(p=>p.onPitch&&p.posQ[G.quarter-1]==='GK'):G.players.filter(p=>p.onPitch);
     const o='<option value="">Select...</option>'+pool.map(p=>`<option value="${fname(p)}">#${p.number} ${fname(p)} (${p.posQ[G.quarter-1]})</option>`).join('');
     document.getElementById('me-player').innerHTML=o;
   }
@@ -1070,7 +1070,7 @@ function submitEvent(){
   else if(curType==='goal-ag') desc='Goal against';
   else if(curType==='yellow') desc=`Yellow card — ${player}`;
   else if(curType==='red') desc=`Red card — ${player}`;
-  else if(curType==='sub') desc=`Sub: ${player} on, ${suboff||'?'} off`;
+  else if(curType==='sub'){desc=`Sub: ${player} on, ${suboff||'?'} off`;const pOn=G.players.find(x=>fname(x)===player);const pOff=G.players.find(x=>fname(x)===suboff);if(pOn){pOn.onPitch=true;pOn.posQ[G.quarter-1]=pOff?pOff.posQ[G.quarter-1]:'MID';}if(pOff){pOff.onPitch=false;pOff.posQ[G.quarter-1]='SUB';}}
   else if(curType==='foul') desc=`Foul won — ${player}`;
   else if(curType==='note') desc=note;
   pushEv({type:curType,subtype:curOutcome,time:getTS(),sec:G.timer.sec,quarter:G.quarter,playerName:player,extra:{assist,suboff},icon:ICONS[curType]||'📌',desc});
