@@ -309,9 +309,19 @@ input[readonly]{cursor:default;}
     <label>Captain</label><select id="s-captain"><option value="">Select captain...</option></select>
   </div>
   <div class="card" style="margin-bottom:16px;">
-    <div class="card-title">Quarter 1 — Starting Positions</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Set each player's role for the opening quarter.</p>
-    <div id="q1pos"></div>
+    <div class="card-title">Quarter Positions</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Set positions for all four quarters in advance. These load automatically each quarter.</p>
+    <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--border);padding-bottom:0;">
+      <button class="qpos-tab active" data-q="1" onclick="switchQTab(1)">Q1</button>
+      <button class="qpos-tab" data-q="2" onclick="switchQTab(2)">Q2</button>
+      <button class="qpos-tab" data-q="3" onclick="switchQTab(3)">Q3</button>
+      <button class="qpos-tab" data-q="4" onclick="switchQTab(4)">Q4</button>
+      <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px;" onclick="copyQ1ToAll()">Copy Q1 to all</button>
+    </div>
+    <div id="qpos-q1" class="qpos-panel"></div>
+    <div id="qpos-q2" class="qpos-panel" style="display:none;"></div>
+    <div id="qpos-q3" class="qpos-panel" style="display:none;"></div>
+    <div id="qpos-q4" class="qpos-panel" style="display:none;"></div>
   </div>
   <div class="gap-row">
     <button class="btn btn-red btn-lg" onclick="startMatch()">🚀 Start Match</button>
@@ -526,23 +536,20 @@ input[readonly]{cursor:default;}
 
 <!-- FIXTURE MODAL -->
 <div class="mo" id="mo-fixture">
-  <div class="modal modal-lg" style="max-width:600px;">
-    <div class="modal-title" id="mf-title">New Fixture</div>
+  <div class="modal modal-lg" style="max-width:600px;"><div class="modal-title" id="mf-title">New Fixture</div>
     <input type="hidden" id="mf-id">
     <div class="g2">
       <div>
         <label>Opponent</label><input type="text" id="mf-opp" placeholder="e.g. Shipley Boys FC">
         <label>Date</label><input type="date" id="mf-date">
         <label>Venue</label><input type="text" id="mf-venue" placeholder="e.g. Thackley Park">
-        <label>Game Type</label>
-        <select id="mf-gtype"><option value="League">League</option><option value="Cup">Cup</option><option value="Friendly">Friendly</option></select>
+        <label>Game Type</label><select id="mf-gtype"><option value="League">League</option><option value="Cup">Cup</option><option value="Friendly">Friendly</option></select>
         <label>Competition</label><input type="text" id="mf-comp" placeholder="e.g. West Riding Junior League">
-        <label>Quarter Length (minutes)</label><input type="number" id="mf-ql" value="10" min="3" max="30">
-        <label>Players Starting</label>
-        <select id="mf-start"><option value="5">5 players</option><option value="6">6 players</option></select>
+        <label>Quarter Length</label><input type="number" id="mf-ql" value="10" min="3" max="30">
+        <label>Players Starting</label><select id="mf-start"><option value="5">5 players</option><option value="6">6 players</option></select>
       </div>
       <div>
-        <label style="margin-top:0;">Squad for this Fixture</label>
+        <label style="margin-top:0;">Squad</label>
         <div id="mf-player-list"></div>
         <div class="gap-row" style="margin-top:8px;">
           <button class="btn btn-ghost btn-sm" onclick="addFixturePRow()">+ Add Player</button>
@@ -551,20 +558,9 @@ input[readonly]{cursor:default;}
       </div>
     </div>
     <div class="card" style="margin-top:14px;margin-bottom:0;">
-      <div class="card-title" style="margin-bottom:10px;">Captain and Quarter Positions</div>
-      <label style="margin-top:0;">Captain</label>
-      <select id="mf-captain" style="margin-bottom:12px;"><option value="">Select captain...</option></select>
-      <div style="display:flex;gap:6px;margin-bottom:10px;border-bottom:2px solid var(--border);padding-bottom:0;">
-        <button class="qpos-tab active" data-fq="1" onclick="switchFQTab(1)">Q1</button>
-        <button class="qpos-tab" data-fq="2" onclick="switchFQTab(2)">Q2</button>
-        <button class="qpos-tab" data-fq="3" onclick="switchFQTab(3)">Q3</button>
-        <button class="qpos-tab" data-fq="4" onclick="switchFQTab(4)">Q4</button>
-        <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px;" onclick="copyFQ1ToAll()">Copy Q1 to all</button>
-      </div>
-      <div id="mf-qpos-1" class="mf-qpos-panel"></div>
-      <div id="mf-qpos-2" class="mf-qpos-panel" style="display:none;"></div>
-      <div id="mf-qpos-3" class="mf-qpos-panel" style="display:none;"></div>
-      <div id="mf-qpos-4" class="mf-qpos-panel" style="display:none;"></div>
+      <div class="card-title" style="margin-bottom:10px;">Captain and Q1 Positions</div>
+      <label style="margin-top:0;">Captain</label><select id="mf-captain" style="margin-bottom:12px;"><option value="">Select captain...</option></select>
+      <div style="display:flex;gap:6px;margin-bottom:10px;border-bottom:2px solid var(--border);padding-bottom:0;"><button class="qpos-tab active" data-fq="1" onclick="switchFQTab(1)">Q1</button><button class="qpos-tab" data-fq="2" onclick="switchFQTab(2)">Q2</button><button class="qpos-tab" data-fq="3" onclick="switchFQTab(3)">Q3</button><button class="qpos-tab" data-fq="4" onclick="switchFQTab(4)">Q4</button><button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px;" onclick="copyFQ1ToAll()">Copy Q1 to all</button></div><div id="mf-qpos-1" class="mf-qpos-panel"></div><div id="mf-qpos-2" class="mf-qpos-panel" style="display:none;"></div><div id="mf-qpos-3" class="mf-qpos-panel" style="display:none;"></div><div id="mf-qpos-4" class="mf-qpos-panel" style="display:none;"></div>
     </div>
     <div class="mfooter">
       <button class="btn btn-ghost" onclick="closeM('mo-fixture')">Cancel</button>
@@ -1657,10 +1653,8 @@ function renderFixtures(){
   };
   list.innerHTML=rg(upcoming,'Upcoming')+rg(past,'Past Fixtures');
 }
-let _currentEditFixture=null;
 function openFixtureEditor(id){
   const f=id?_cachedFixtures.find(x=>x.id===id):null;
-  _currentEditFixture=f;
   document.getElementById('mf-id').value=f&&f.id||'';
   document.getElementById('mf-title').textContent=f?'Edit Fixture':'New Fixture';
   document.getElementById('mf-opp').value=f&&f.opp||'';
@@ -1675,10 +1669,6 @@ function openFixtureEditor(id){
   if(f&&f.players&&f.players.length)f.players.forEach(p=>addFixturePRow(p.number,p.firstName,p.lastName));
   else [1,2,3,4,5].forEach(i=>addFixturePRow(i,'',''));
   buildFixtureQ1Pos(f);
-  // Reset to Q1 tab
-  document.querySelectorAll('[data-fq]').forEach(b=>b.classList.toggle('active',b.dataset.fq==='1'));
-  document.querySelectorAll('.mf-qpos-panel').forEach(p=>p.style.display='none');
-  const q1panel=document.getElementById('mf-qpos-1');if(q1panel)q1panel.style.display='block';
   document.getElementById('mo-fixture').classList.add('open');
 }
 function addFixturePRow(num,first,last){
@@ -1700,11 +1690,7 @@ function loadProfilesIntoFixture(){
 function switchFQTab(q){
   document.querySelectorAll('[data-fq]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.fq)===q));
   document.querySelectorAll('.mf-qpos-panel').forEach(p=>p.style.display='none');
-  const panel=document.getElementById('mf-qpos-'+q);
-  if(panel){
-    panel.style.display='block';
-    if(!panel.children.length) buildFixtureQ1Pos(_currentEditFixture||null);
-  }
+  const panel=document.getElementById('mf-qpos-'+q);if(panel)panel.style.display='block';
 }
 
 function copyFQ1ToAll(){
@@ -1751,8 +1737,11 @@ function loadFixtureIntoSetup(id){
   document.getElementById('s-opp').value=f.opp||'';document.getElementById('s-date').value=f.date||'';document.getElementById('s-venue').value=f.venue||'';document.getElementById('s-gtype').value=f.gtype||'League';document.getElementById('s-comp').value=f.comp||'';document.getElementById('s-ql').value=f.ql||10;document.getElementById('s-start').value=f.startN||5;
   document.getElementById('player-list').innerHTML='';
   (f.players||[]).forEach(p=>addPRow(p.number,p.firstName,p.lastName));
-  buildQ1Pos();
-  (f.players||[]).forEach((p,i)=>{const sel=document.getElementById('q1p-'+i);if(sel&&p.posQ&&p.posQ[0])sel.value=p.posQ[0];});
+  buildAllQPos();
+  (f.players||[]).forEach((p,i)=>{[1,2,3,4].forEach(q=>{const sel=document.getElementById('qp-'+q+'-'+i);if(sel&&p.posQ&&p.posQ[q-1])sel.value=p.posQ[q-1];});});
+  document.querySelectorAll('.qpos-tab[data-q]').forEach(b=>b.classList.toggle('active',b.dataset.q==='1'));
+  document.querySelectorAll('.qpos-panel').forEach(p=>p.style.display='none');
+  const _q1p=document.getElementById('qpos-q1');if(_q1p)_q1p.style.display='block';
   updateCaptainDropdown();
   setTimeout(()=>{const cs=document.getElementById('s-captain');if(cs&&f.captain)cs.value=f.captain;},100);
   switchTab('setup');showToast('Fixture loaded! Review and start when ready');
