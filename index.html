@@ -1643,8 +1643,10 @@ function renderFixtures(){
   };
   list.innerHTML=rg(upcoming,'Upcoming')+rg(past,'Past Fixtures');
 }
+let _currentEditFixture=null;
 function openFixtureEditor(id){
   const f=id?_cachedFixtures.find(x=>x.id===id):null;
+  _currentEditFixture=f;
   document.getElementById('mf-id').value=f&&f.id||'';
   document.getElementById('mf-title').textContent=f?'Edit Fixture':'New Fixture';
   document.getElementById('mf-opp').value=f&&f.opp||'';
@@ -1659,6 +1661,10 @@ function openFixtureEditor(id){
   if(f&&f.players&&f.players.length)f.players.forEach(p=>addFixturePRow(p.number,p.firstName,p.lastName));
   else [1,2,3,4,5].forEach(i=>addFixturePRow(i,'',''));
   buildFixtureQ1Pos(f);
+  // Reset to Q1 tab
+  document.querySelectorAll('[data-fq]').forEach(b=>b.classList.toggle('active',b.dataset.fq==='1'));
+  document.querySelectorAll('.mf-qpos-panel').forEach(p=>p.style.display='none');
+  const q1panel=document.getElementById('mf-qpos-1');if(q1panel)q1panel.style.display='block';
   document.getElementById('mo-fixture').classList.add('open');
 }
 function addFixturePRow(num,first,last){
@@ -1680,7 +1686,11 @@ function loadProfilesIntoFixture(){
 function switchFQTab(q){
   document.querySelectorAll('[data-fq]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.fq)===q));
   document.querySelectorAll('.mf-qpos-panel').forEach(p=>p.style.display='none');
-  const panel=document.getElementById('mf-qpos-'+q);if(panel)panel.style.display='block';
+  const panel=document.getElementById('mf-qpos-'+q);
+  if(panel){
+    panel.style.display='block';
+    if(!panel.children.length) buildFixtureQ1Pos(_currentEditFixture||null);
+  }
 }
 
 function copyFQ1ToAll(){
