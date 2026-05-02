@@ -1827,7 +1827,7 @@ function buildFixtureQ1Pos(fd){
     }).join('');
   });
 }
-document.getElementById('mf-start').addEventListener('change',()=>buildFixtureQ1Pos());dFixtureQ1Pos());
+document.getElementById('mf-start').addEventListener('change',()=>buildFixtureQ1Pos());
 async function saveFixture(){
   const opp=document.getElementById('mf-opp').value.trim();if(!opp){showToast('Enter opponent name','warn');return;}
   const eid=document.getElementById('mf-id').value;const fid=eid||'fix_'+Date.now();
