@@ -1295,7 +1295,7 @@ function renderSeasonStats(){
   const rows=players.map(p=>{
     const cells=cols.map(c=>{const v=p[c.key]||0;return`<td><span class="ss-val ${v===0?'zero':''}">${v}</span></td>`;}).join('');
     const pname=(p.firstName+' '+p.lastName).trim();
-    return`<tr onclick="showPlayerBreakdown('${pname.replace(/'/g,"\'")}')"><td><span class="ss-num">${p.number}</span><span class="ss-name">${p.firstName} ${p.lastName}</span></td>${cells}</tr>`;
+    return`<tr onclick="showPlayerBreakdown('${pname.replace(/'/g,'&#39;')}')"><td><span class="ss-num">${p.number}</span><span class="ss-name">${p.firstName} ${p.lastName}</span></td>${cells}</tr>`;
   }).join('');
   const headers=cols.map(c=>`<th onclick="document.getElementById('stats-sort').value='${c.key}';renderSeasonStats()" class="${_statsSortCol===c.key?'sort-active':''}">${c.label}</th>`).join('');
   if(container) container.innerHTML=`
