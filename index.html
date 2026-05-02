@@ -202,6 +202,10 @@ input[readonly]{cursor:default;}
 .ldot::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--red);animation:pulse 1.5s infinite;}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
 .fdiv{border:none;border-top:1px solid var(--border);margin:14px 0;}
+/* QUARTER POSITION TABS */
+.qpos-tab{padding:8px 18px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;border:none;background:none;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .2s;}
+.qpos-tab:hover{color:var(--text);}
+.qpos-tab.active{color:var(--red);border-bottom-color:var(--red);}
 /* SEASON STATS */
 .ss-table{width:100%;border-collapse:collapse;font-size:12px;}
 .ss-table th{font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;padding:8px 10px;text-align:center;border-bottom:2px solid var(--border);cursor:pointer;white-space:nowrap;background:#fff;}
@@ -338,9 +342,19 @@ input[readonly]{cursor:default;}
     <label>Captain</label><select id="s-captain"><option value="">Select captain...</option></select>
   </div>
   <div class="card" style="margin-bottom:16px;">
-    <div class="card-title">Quarter 1 — Starting Positions</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Set each player's role for the opening quarter.</p>
-    <div id="q1pos"></div>
+    <div class="card-title">Quarter Positions</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Set positions for all four quarters in advance. These will load automatically when each quarter starts — you can still adjust them on the day.</p>
+    <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--border);padding-bottom:0;">
+      <button class="qpos-tab active" data-q="1" onclick="switchQTab(1)">Q1</button>
+      <button class="qpos-tab" data-q="2" onclick="switchQTab(2)">Q2</button>
+      <button class="qpos-tab" data-q="3" onclick="switchQTab(3)">Q3</button>
+      <button class="qpos-tab" data-q="4" onclick="switchQTab(4)">Q4</button>
+      <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px;" onclick="copyQ1ToAll()">Copy Q1 to all</button>
+    </div>
+    <div id="qpos-q1" class="qpos-panel"></div>
+    <div id="qpos-q2" class="qpos-panel" style="display:none;"></div>
+    <div id="qpos-q3" class="qpos-panel" style="display:none;"></div>
+    <div id="qpos-q4" class="qpos-panel" style="display:none;"></div>
   </div>
   <div class="gap-row">
     <button class="btn btn-red btn-lg" onclick="startMatch()">🚀 Start Match</button>
@@ -599,9 +613,19 @@ input[readonly]{cursor:default;}
       </div>
     </div>
     <div class="card" style="margin-top:14px;margin-bottom:0;">
-      <div class="card-title" style="margin-bottom:10px;">Captain and Q1 Positions</div>
+      <div class="card-title" style="margin-bottom:10px;">Captain and Quarter Positions</div>
       <label style="margin-top:0;">Captain</label><select id="mf-captain" style="margin-bottom:12px;"><option value="">Select captain...</option></select>
-      <div id="mf-q1pos"></div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;border-bottom:2px solid var(--border);padding-bottom:0;">
+        <button class="qpos-tab active" data-fq="1" onclick="switchFQTab(1)">Q1</button>
+        <button class="qpos-tab" data-fq="2" onclick="switchFQTab(2)">Q2</button>
+        <button class="qpos-tab" data-fq="3" onclick="switchFQTab(3)">Q3</button>
+        <button class="qpos-tab" data-fq="4" onclick="switchFQTab(4)">Q4</button>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px;" onclick="copyFQ1ToAll()">Copy Q1 to all</button>
+      </div>
+      <div id="mf-qpos-1" class="mf-qpos-panel"></div>
+      <div id="mf-qpos-2" class="mf-qpos-panel" style="display:none;"></div>
+      <div id="mf-qpos-3" class="mf-qpos-panel" style="display:none;"></div>
+      <div id="mf-qpos-4" class="mf-qpos-panel" style="display:none;"></div>
     </div>
     <div class="mfooter">
       <button class="btn btn-ghost" onclick="closeM('mo-fixture')">Cancel</button>
@@ -832,7 +856,7 @@ window.onUserSignedIn = function(){
   document.getElementById('s-date').value = new Date().toISOString().split('T')[0];
   if(document.getElementById('player-list').children.length===0){
     [1,2,3,4,5].forEach(()=>addPRow());
-    buildQ1Pos();
+    buildAllQPos();
   }
   renderProfiles();
 };
@@ -905,23 +929,61 @@ function updateCaptainDropdown(){
     }).join('');
 }
 
-function buildQ1Pos(){
+function buildQ1Pos(){ buildAllQPos(); }
+
+function switchQTab(q){
+  document.querySelectorAll('.qpos-tab').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.q)===q));
+  document.querySelectorAll('.qpos-panel').forEach(p=>p.style.display='none');
+  const panel=document.getElementById('qpos-q'+q);
+  if(panel){
+    panel.style.display='block';
+    // Rebuild if empty
+    if(!panel.children.length) buildAllQPos();
+  }
+}
+
+function buildAllQPos(){
   const rows=Array.from(document.getElementById('player-list').children);
   const startN=parseInt(document.getElementById('s-start').value)||5;
-  document.getElementById('q1pos').innerHTML=rows.map((r,i)=>{
-    const f=r.querySelector('.pi-f').value||'Player '+(i+1);
-    const l=r.querySelector('.pi-l').value||'';
-    const n=r.querySelector('.pi-n').value||(i+1);
-    const isSub=i>=startN;
-    return`<div class="ppr"><div class="ppn">${n}</div><div class="ppname">${f} ${l}</div>
-      <select class="ppsel" id="q1p-${i}">
-        <option value="GK">GK</option><option value="DEF">DEF</option>
-        <option value="MID" ${!isSub?'selected':''}>MID</option><option value="FWD">FWD</option>
-        <option value="SUB" ${isSub?'selected':''}>SUB</option>
-      </select></div>`;
-  }).join('');
+  [1,2,3,4].forEach(q=>{
+    const panel=document.getElementById('qpos-q'+q);
+    if(!panel)return;
+    panel.innerHTML=rows.map((r,i)=>{
+      const f=r.querySelector('.pi-f').value||'Player '+(i+1);
+      const l=r.querySelector('.pi-l').value||'';
+      const n=r.querySelector('.pi-n').value||(i+1);
+      const isSub=i>=startN;
+      // Preserve existing selection if already set
+      const existingSel=document.getElementById('qp-'+q+'-'+i);
+      const curVal=existingSel?existingSel.value:'';
+      const defVal=curVal||(isSub?'SUB':'MID');
+      return`<div class="ppr"><div class="ppn">${n}</div><div class="ppname">${f} ${l}</div>
+        <select class="ppsel" id="qp-${q}-${i}">
+          <option value="GK" ${defVal==='GK'?'selected':''}>GK</option>
+          <option value="DEF" ${defVal==='DEF'?'selected':''}>DEF</option>
+          <option value="MID" ${defVal==='MID'?'selected':''}>MID</option>
+          <option value="FWD" ${defVal==='FWD'?'selected':''}>FWD</option>
+          <option value="SUB" ${defVal==='SUB'?'selected':''}>SUB</option>
+        </select></div>`;
+    }).join('');
+  });
 }
-document.getElementById('s-start').addEventListener('change',buildQ1Pos);
+
+function copyQ1ToAll(){
+  const rows=Array.from(document.getElementById('player-list').children);
+  rows.forEach((r,i)=>{
+    const q1sel=document.getElementById('qp-1-'+i);
+    if(!q1sel)return;
+    const val=q1sel.value;
+    [2,3,4].forEach(q=>{
+      const sel=document.getElementById('qp-'+q+'-'+i);
+      if(sel) sel.value=val;
+    });
+  });
+  showToast('Q1 positions copied to all quarters');
+}
+
+document.getElementById('s-start').addEventListener('change',buildAllQPos);
 
 function startMatch(){
   const opp=document.getElementById('s-opp').value.trim();
@@ -929,10 +991,13 @@ function startMatch(){
   const rows=Array.from(document.getElementById('player-list').children);
   if(!rows.length){showToast('Add at least one player','warn');return;}
   G.players=rows.map((r,i)=>{
-    const pos=document.getElementById('q1p-'+i)?.value||'SUB';
+    const q1=document.getElementById('qp-1-'+i)?.value||document.getElementById('q1p-'+i)?.value||'SUB';
+    const q2=document.getElementById('qp-2-'+i)?.value||q1;
+    const q3=document.getElementById('qp-3-'+i)?.value||q1;
+    const q4=document.getElementById('qp-4-'+i)?.value||q1;
     return{id:'p'+Date.now()+i,firstName:r.querySelector('.pi-f').value.trim()||'Player',
       lastName:r.querySelector('.pi-l').value.trim()||'',number:r.querySelector('.pi-n').value||(i+1),
-      posQ:[pos,'SUB','SUB','SUB'],onPitch:pos!=='SUB',isExtra:false,stats:{}};
+      posQ:[q1,q2,q3,q4],onPitch:q1!=='SUB',isExtra:false,stats:{}};
   });
   G.match={opp,date:document.getElementById('s-date').value,venue:document.getElementById('s-venue').value,
     comp:document.getElementById('s-comp').value,gtype:document.getElementById('s-gtype').value,
@@ -976,7 +1041,7 @@ function nextQtr(){
 function openQtrModal(){
   const q=pendingQ;
   document.getElementById('mqt').textContent='Quarter '+q+' — Positions';
-  document.getElementById('mqd').textContent='Assign positions for Q'+q+'.';
+  document.getElementById('mqd').textContent='Pre-set positions loaded for Q'+q+'. Adjust if needed, then start.';
   document.getElementById('mq-pos').innerHTML=G.players.map((p,i)=>{
     const prev=p.posQ[q-2]||'SUB';
     return`<div class="ppr"><div class="ppn">${p.number}</div><div class="ppname">${fname(p)}</div>
@@ -1730,19 +1795,44 @@ function loadProfilesIntoFixture(){
   document.getElementById('mf-player-list').innerHTML='';
   p.slice(0,8).forEach(x=>addFixturePRow(x.number,x.firstName,x.lastName));
 }
+function switchFQTab(q){
+  document.querySelectorAll('[data-fq]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.fq)===q));
+  document.querySelectorAll('.mf-qpos-panel').forEach(p=>p.style.display='none');
+  const panel=document.getElementById('mf-qpos-'+q);if(panel)panel.style.display='block';
+}
+
+function copyFQ1ToAll(){
+  const rows=Array.from(document.getElementById('mf-player-list').children);
+  rows.forEach((r,i)=>{
+    const q1sel=document.getElementById('mfq1p-'+i);if(!q1sel)return;
+    [2,3,4].forEach(q=>{const sel=document.getElementById('mfq'+q+'p-'+i);if(sel)sel.value=q1sel.value;});
+  });
+  showToast('Q1 positions copied to all quarters');
+}
+
 function buildFixtureQ1Pos(fd){
   const rows=Array.from(document.getElementById('mf-player-list').children);
   const sn=parseInt(document.getElementById('mf-start').value)||5;
   const cc=document.getElementById('mf-captain').value;
-  document.getElementById('mf-captain').innerHTML='<option value="">Select captain...</option>'+rows.map((r,i)=>{const f=r.querySelector('.mf-pi-f').value||'Player '+(i+1);const l=r.querySelector('.mf-pi-l').value||'';const n=r.querySelector('.mf-pi-n').value||(i+1);const name=(f+' '+l).trim();const sc=fd&&fd.captain;return"<option value='"+name+"' "+((sc||cc)===name?'selected':'')+'>#'+n+' '+name+'</option>';}).join('');
-  document.getElementById('mf-q1pos').innerHTML=rows.map((r,i)=>{const f=r.querySelector('.mf-pi-f').value||'Player '+(i+1);const l=r.querySelector('.mf-pi-l').value||'';const n=r.querySelector('.mf-pi-n').value||(i+1);const isSub=i>=sn;const sp=fd&&fd.players&&fd.players[i]&&fd.players[i].posQ&&fd.players[i].posQ[0];return'<div class="ppr"><div class="ppn">'+n+'</div><div class="ppname">'+f+' '+l+'</div><select class="ppsel" id="mfq1p-'+i+'"><option value="GK"'+(sp==='GK'?' selected':'')+'>GK</option><option value="DEF"'+(sp==='DEF'?' selected':'')+'>DEF</option><option value="MID"'+(sp==='MID'||((!sp)&&!isSub)?' selected':'')+'>MID</option><option value="FWD"'+(sp==='FWD'?' selected':'')+'>FWD</option><option value="SUB"'+(sp==='SUB'||((!sp)&&isSub)?' selected':'')+'>SUB</option></select></div>';}).join('');
+  document.getElementById('mf-captain').innerHTML='<option value="">Select captain...</option>'+
+    rows.map((r,i)=>{const f=r.querySelector('.mf-pi-f').value||'Player '+(i+1);const l=r.querySelector('.mf-pi-l').value||'';const n=r.querySelector('.mf-pi-n').value||(i+1);const name=(f+' '+l).trim();const sc=fd&&fd.captain;return"<option value='"+name+"' "+((sc||cc)===name?'selected':'')+'>#'+n+' '+name+'</option>';}).join('');
+  // Build 4 quarter panels
+  [1,2,3,4].forEach(q=>{
+    const panel=document.getElementById('mf-qpos-'+q);if(!panel)return;
+    panel.innerHTML=rows.map((r,i)=>{
+      const f=r.querySelector('.mf-pi-f').value||'Player '+(i+1);const l=r.querySelector('.mf-pi-l').value||'';const n=r.querySelector('.mf-pi-n').value||(i+1);const isSub=i>=sn;
+      const sp=fd&&fd.players&&fd.players[i]&&fd.players[i].posQ?fd.players[i].posQ[q-1]:null;
+      const dv=sp||(isSub?'SUB':'MID');
+      return'<div class="ppr"><div class="ppn">'+n+'</div><div class="ppname">'+f+' '+l+'</div><select class="ppsel" id="mfq'+q+'p-'+i+'"><option value="GK"'+(dv==='GK'?' selected':'')+'>GK</option><option value="DEF"'+(dv==='DEF'?' selected':'')+'>DEF</option><option value="MID"'+(dv==='MID'?' selected':'')+'>MID</option><option value="FWD"'+(dv==='FWD'?' selected':'')+'>FWD</option><option value="SUB"'+(dv==='SUB'?' selected':'')+'>SUB</option></select></div>';
+    }).join('');
+  });
 }
-document.getElementById('mf-start').addEventListener('change',()=>buildFixtureQ1Pos());
+document.getElementById('mf-start').addEventListener('change',()=>buildFixtureQ1Pos());dFixtureQ1Pos());
 async function saveFixture(){
   const opp=document.getElementById('mf-opp').value.trim();if(!opp){showToast('Enter opponent name','warn');return;}
   const eid=document.getElementById('mf-id').value;const fid=eid||'fix_'+Date.now();
   const rows=Array.from(document.getElementById('mf-player-list').children);
-  const players=rows.map((r,i)=>{const pos=document.getElementById('mfq1p-'+i)?.value||'SUB';return{firstName:r.querySelector('.mf-pi-f').value.trim()||'Player',lastName:r.querySelector('.mf-pi-l').value.trim()||'',number:r.querySelector('.mf-pi-n').value||(i+1),posQ:[pos,'SUB','SUB','SUB'],onPitch:pos!=='SUB',isExtra:false,stats:{}};});
+  const players=rows.map((r,i)=>{const q1=document.getElementById('mfq1p-'+i)?.value||'SUB';const q2=document.getElementById('mfq2p-'+i)?.value||q1;const q3=document.getElementById('mfq3p-'+i)?.value||q1;const q4=document.getElementById('mfq4p-'+i)?.value||q1;return{firstName:r.querySelector('.mf-pi-f').value.trim()||'Player',lastName:r.querySelector('.mf-pi-l').value.trim()||'',number:r.querySelector('.mf-pi-n').value||(i+1),posQ:[q1,q2,q3,q4],onPitch:q1!=='SUB',isExtra:false,stats:{}};});
   const fixture={id:fid,opp,date:document.getElementById('mf-date').value,venue:document.getElementById('mf-venue').value,gtype:document.getElementById('mf-gtype').value,comp:document.getElementById('mf-comp').value,ql:parseInt(document.getElementById('mf-ql').value)||10,startN:parseInt(document.getElementById('mf-start').value)||5,captain:document.getElementById('mf-captain').value,players,createdAt:new Date().toISOString()};
   try{await window._db.set('fixtures',fid,fixture);if(eid){const i=_cachedFixtures.findIndex(x=>x.id===eid);if(i>=0)_cachedFixtures[i]=fixture;else _cachedFixtures.push(fixture);}else _cachedFixtures.push(fixture);_cachedFixtures.sort((a,b)=>a.date>b.date?1:-1);closeM('mo-fixture');renderFixtures();showToast('Fixture saved!');}catch(e){showToast('Error: '+e.message,'warn');}
 }
