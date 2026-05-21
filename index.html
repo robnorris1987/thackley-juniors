@@ -966,13 +966,14 @@ function fullTime(){
   G.phase='ft'; setBadge('Full Time','ft');
   pushEv({type:'sys',subtype:'ft',time:getTS(),sec:G.timer.sec,quarter:G.quarter,playerName:'',extra:{},icon:'[FT]',desc:'Full Time'});
   for(let i=1;i<=4;i++) document.getElementById('qp'+i)?.classList.replace('active','done');
-  showToast('Full time! Save the match ');
   checkShootoutPrompt();
   autoDeleteFixture();
+  // Auto-save the match
+  autoSaveMatch();
   setTimeout(()=>{
     if(G.match.gtype==='Cup'&&G.score.home===G.score.away) return;
     switchTab('stats');
-    setTimeout(()=>showToast('Remember to rate players in the Review tab!'),2000);
+    setTimeout(()=>showToast('Remember to rate your players in the Review tab!'),2000);
   },800);
 }
 
@@ -1428,7 +1429,8 @@ function showSaveModal(){if(!G.started){showToast('No active match','warn');retu
 
 async function saveMatch(){
   const label=document.getElementById('save-lbl').value.trim();
-  const matchId='match_'+Date.now();
+  // Reuse existing ID if already auto-saved, so we update rather than duplicate
+  const matchId=G._savedMatchId||('match_'+Date.now());
   G._savedMatchId=matchId;
   const matchData={id:matchId,label,match:{...G.match},
     players:G.players.map(p=>({...p,stats:{...p.stats||{}},posQ:[...p.posQ]})),
@@ -2019,6 +2021,36 @@ function submitFreeKick(outcome){
   if(isGoal) checkHandicap();
   closeM('mo-freekick');
   showToast(isGoal ? 'FREE KICK GOAL! ⚽' : 'Free kick logged');
+}
+
+// ═══ AUTO SAVE ON FULL TIME ═══
+async function autoSaveMatch(){
+  if(!G.started) return;
+  try{
+    // If already saved, just update the existing record
+    const matchId = G._savedMatchId || ('match_'+Date.now());
+    G._savedMatchId = matchId;
+    const matchData={
+      id:matchId,
+      label:G.match.opp+' (Auto-saved)',
+      match:{...G.match},
+      players:G.players.map(p=>({...p,stats:{...p.stats||{}},posQ:[...p.posQ]})),
+      events:[...G.events],
+      score:{...G.score},
+      shootout:G.shootout||null,
+      savedAt:new Date().toISOString(),
+      autoSaved:true
+    };
+    await window._db.set('matches',matchId,matchData);
+    // Update local cache
+    const existing=_cachedMatches.findIndex(m=>m.id===matchId);
+    if(existing>=0) _cachedMatches[existing]=matchData;
+    else _cachedMatches.unshift(matchData);
+    showToast('Match auto-saved!');
+  }catch(e){
+    console.error('Auto-save failed:',e.message);
+    showToast('Full time! Remember to save the match','warn');
+  }
 }
 
 // ═══ AUTO DELETE FIXTURE ON FULL TIME ═══
