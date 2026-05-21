@@ -238,24 +238,23 @@ input[readonly]{cursor:default;}
   </div>
   <div class="hbtns">
     <span class="huser" id="user-email-display"></span>
-    <button class="btn-hdr" onclick="showSaveModal()">💾 Save</button>
-    <button class="btn-hdr" onclick="switchTab('setup')">+ New Match</button>
-    <button class="btn-hdr" onclick="doSignOut()" title="Sign out">⏻</button>
+    <button class="btn-hdr" id="hdr-save-btn" onclick="showSaveModal()" style="display:none;">&#128190; Save Result</button>
+    <button class="btn-hdr" onclick="doSignOut()" title="Sign out">&#9211;</button>
   </div>
 </header>
 
 <nav class="nav-tabs">
-  <button class="nav-tab active" onclick="switchTab('profiles')" data-tab="profiles">Profiles</button>
-  <button class="nav-tab" onclick="switchTab('fixtures')" data-tab="fixtures">Fixtures</button>
-  <button class="nav-tab" onclick="switchTab('setup')" data-tab="setup">Setup</button>
-  <button class="nav-tab" onclick="switchTab('live')" data-tab="live">🔴 Live</button>
-  <button class="nav-tab" onclick="switchTab('stats')" data-tab="stats">Stats</button>
-  <button class="nav-tab" onclick="switchTab('review')" data-tab="review">Review</button>
-  <button class="nav-tab" onclick="switchTab('saved')" data-tab="saved">Saved</button>
+  <button class="nav-tab active" onclick="switchTab('fixtures')" data-tab="fixtures">&#128197; Fixtures</button>
+  <button class="nav-tab" onclick="switchTab('setup')" data-tab="setup">&#9881;&#65039; Setup</button>
+  <button class="nav-tab" onclick="switchTab('live')" data-tab="live">&#128308; Live</button>
+  <button class="nav-tab" onclick="switchTab('stats')" data-tab="stats">&#128202; Stats</button>
+  <button class="nav-tab" onclick="switchTab('review')" data-tab="review">&#11088; Review</button>
+  <button class="nav-tab" onclick="switchTab('saved')" data-tab="saved">&#127942; Results</button>
+  <button class="nav-tab" onclick="switchTab('profiles')" data-tab="profiles">&#128283; Squad</button>
 </nav>
 
 <!-- PROFILES -->
-<div class="view active" id="view-profiles">
+<div class="view" id="view-profiles">
   <div class="pt">
     <input class="psearch" type="text" id="profile-search" placeholder="Search players..." oninput="renderProfiles()">
     <button class="btn btn-red btn-sm" onclick="openProfileEditor(null)">+ Add Player</button>
@@ -274,8 +273,8 @@ input[readonly]{cursor:default;}
 </div>
 
 <!-- FIXTURES -->
-<div class="view" id="view-fixtures">
-  <div class="sh"><div class="st">Fixtures</div><button class="btn btn-red btn-sm" onclick="openFixtureEditor(null)">+ Add Fixture</button></div>
+<div class="view active" id="view-fixtures">
+  <div class="sh"><div class="st">Fixtures</div><div style="display:flex;gap:8px;"><button class="btn btn-ghost btn-sm" onclick="switchTab('setup')">&#9881;&#65039; Quick Setup</button><button class="btn btn-red btn-sm" onclick="openFixtureEditor(null)">+ Add Fixture</button></div></div>
   <div id="fixtures-list"><div class="empty"><div class="empty-ico">📅</div>No fixtures yet</div></div>
 </div>
 
@@ -325,7 +324,7 @@ input[readonly]{cursor:default;}
   </div>
   <div class="gap-row">
     <button class="btn btn-red btn-lg" onclick="startMatch()">🚀 Start Match</button>
-    <button class="btn btn-ghost" onclick="switchTab('saved')">📁 Saved Matches</button>
+    <button class="btn btn-ghost" onclick="switchTab('saved')">🏆 View Results</button>
   </div>
 </div>
 
@@ -744,13 +743,12 @@ const fname = p => (p.firstName+' '+p.lastName).trim();
 window.onUserSignedIn = function(){
   loadProfilesFromDB();
   loadMatchesFromDB();
-  loadFixturesFromDB();
+  loadFixturesFromDB().then(()=>renderFixtures());
   document.getElementById('s-date').value = new Date().toISOString().split('T')[0];
   if(document.getElementById('player-list').children.length===0){
     [1,2,3,4,5].forEach(()=>addPRow());
     buildAllQPos();
   }
-  renderProfiles();
 };
 
 // ═══ DB HELPERS ═══
@@ -899,7 +897,9 @@ function startMatch(){
   G.shootout=null; G._savedMatchId=null; G._pendingRatings={};
   G.quarter=1; G.phase='live'; G.extraPlayers=[]; G.started=true;
   updateLiveUI(); switchTab('live');
-  showToast('Match started! Come on Thackley! [G]');
+  const _sb=document.getElementById('hdr-save-btn');
+  if(_sb) _sb.style.display='inline-flex';
+  showToast('Match started! Come on Thackley!');
 }
 
 // ═══ TIMER ═══
@@ -973,7 +973,13 @@ function fullTime(){
   setTimeout(()=>{
     if(G.match.gtype==='Cup'&&G.score.home===G.score.away) return;
     switchTab('stats');
-    setTimeout(()=>showToast('Remember to rate your players in the Review tab!'),2000);
+    setTimeout(()=>{
+      showToast('Match auto-saved! Tap Review to rate your players.');
+      // Highlight Review tab
+      document.querySelectorAll('.nav-tab').forEach(t=>{
+        if(t.dataset.tab==='review') t.style.animation='pulse 1s ease 3';
+      });
+    },2000);
   },800);
 }
 
@@ -1634,7 +1640,7 @@ function saveShootoutResult(){
 // ═══ FIXTURES ═══
 function renderFixtures(){
   const list=document.getElementById('fixtures-list');
-  if(!_cachedFixtures.length){list.innerHTML='<div class="empty"><div class="empty-ico">&#128197;</div>No fixtures yet</div>';return;}
+  if(!_cachedFixtures.length){list.innerHTML='<div class="empty"><div class="empty-ico">&#128197;</div><div style="margin-bottom:10px;">No upcoming fixtures</div><button class="btn btn-red btn-sm" onclick="openFixtureEditor(null)">+ Plan your next game</button></div>';return;}
   const now=new Date().toISOString().split('T')[0];
   const upcoming=_cachedFixtures.filter(f=>f.date>=now);
   const past=_cachedFixtures.filter(f=>f.date<now);
