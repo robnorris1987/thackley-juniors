@@ -289,7 +289,14 @@ input[readonly]{cursor:default;}
       <label>Game Type</label>
       <select id="s-gtype"><option value="League">🏆 League</option><option value="Cup">🥇 Cup</option><option value="Friendly">🤝 Friendly</option></select>
       <label>Competition</label><input type="text" id="s-comp" placeholder="e.g. West Riding Junior League">
-      <label>Quarter Length (minutes)</label><input type="number" id="s-ql" value="10" min="3" max="30">
+      <label>Number of Periods</label>
+      <select id="s-periods">
+        <option value="1">1 Period (Tournament)</option>
+        <option value="2">2 Halves</option>
+        <option value="3">3 Periods</option>
+        <option value="4" selected>4 Quarters</option>
+      </select>
+      <label>Period Length (minutes)</label><input type="number" id="s-ql" value="10" min="3" max="30">
       <label>Players Starting</label>
       <select id="s-start"><option value="5">5 players</option><option value="6">6 players</option></select>
     </div>
@@ -347,12 +354,12 @@ input[readonly]{cursor:default;}
       <span><span class="qbadge" id="sb-q">Q1</span></span>
     </div>
   </div>
-  <div class="qprog"><div class="qp active" id="qp1"></div><div class="qp" id="qp2"></div><div class="qp" id="qp3"></div><div class="qp" id="qp4"></div></div>
+  <div class="qprog" id="qprog-bar"></div>
   <div class="timer-bar">
     <div class="timer-disp" id="tdisp">00:00</div>
     <button class="btn btn-red btn-sm" id="tbtn" onclick="toggleTimer()">▶ Start</button>
-    <button class="btn btn-ghost btn-sm" onclick="endQtr()">⏸ End Quarter</button>
-    <button class="btn btn-ghost btn-sm" onclick="nextQtr()">▶ Next Quarter</button>
+    <button class="btn btn-ghost btn-sm" id="btn-end-qtr" onclick="endQtr()">End Period</button>
+    <button class="btn btn-ghost btn-sm" id="btn-next-qtr" onclick="nextQtr()">Next Period</button>
     <button class="btn btn-red btn-sm" onclick="fullTime()">🏁 Full Time</button>
   </div>
   <div class="pitch-strip" id="pitch-strip"><span class="pitch-lbl">On Pitch</span><span id="pitch-disp">—</span></div>
@@ -544,7 +551,8 @@ input[readonly]{cursor:default;}
         <label>Venue</label><input type="text" id="mf-venue" placeholder="e.g. Thackley Park">
         <label>Game Type</label><select id="mf-gtype"><option value="League">League</option><option value="Cup">Cup</option><option value="Friendly">Friendly</option></select>
         <label>Competition</label><input type="text" id="mf-comp" placeholder="e.g. West Riding Junior League">
-        <label>Quarter Length</label><input type="number" id="mf-ql" value="10" min="3" max="30">
+        <label>Number of Periods</label><select id="mf-periods"><option value="1">1 Period (Tournament)</option><option value="2">2 Halves</option><option value="3">3 Periods</option><option value="4" selected>4 Quarters</option></select>
+        <label>Period Length (minutes)</label><input type="number" id="mf-ql" value="10" min="3" max="30">
         <label>Players Starting</label><select id="mf-start"><option value="5">5 players</option><option value="6">6 players</option></select>
       </div>
       <div>
@@ -892,7 +900,9 @@ function startMatch(){
   G.match={opp,date:document.getElementById('s-date').value,venue:document.getElementById('s-venue').value,
     comp:document.getElementById('s-comp').value,gtype:document.getElementById('s-gtype').value,
     captain:document.getElementById('s-captain').value,
-    ql:parseInt(document.getElementById('s-ql').value)||10,startN:parseInt(document.getElementById('s-start').value)||5};
+    ql:parseInt(document.getElementById('s-ql').value)||10,
+    periods:parseInt(document.getElementById('s-periods')?.value)||4,
+    startN:parseInt(document.getElementById('s-start').value)||5};
   G.score={home:0,away:0}; G.events=[]; G.timer={running:false,sec:0,iv:null};
   G.shootout=null; G._savedMatchId=null; G._pendingRatings={};
   G.quarter=1; G.phase='live'; G.extraPlayers=[]; G.started=true;
@@ -920,13 +930,14 @@ function getTS(){const m=Math.floor(G.timer.sec/60),s=G.timer.sec%60;return Stri
 
 function endQtr(){
   if(G.timer.running)toggleTimer();
-  setBadge('Q'+G.quarter+' Break','brk');
+  setBadge((G._periodLabel||'Q')+G.quarter+' Break','brk');
   pushEv({type:'sys',subtype:'break',time:getTS(),sec:G.timer.sec,quarter:G.quarter,playerName:'',extra:{},icon:'||',desc:'End of Q'+G.quarter});
   document.getElementById('qp'+G.quarter)?.classList.replace('active','done');
 }
 
 function nextQtr(){
-  if(G.quarter>=4){showToast('Use Full Time after Q4','warn');return;}
+  const maxP=G.match.periods||4;
+  if(G.quarter>=maxP){showToast('Use Full Time after the last period','warn');return;}
   pendingQ=G.quarter+1; openQtrModal();
 }
 
@@ -955,10 +966,10 @@ function confirmQtr(){
   if(G.timer.running){clearInterval(G.timer.iv);G.timer.running=false;}
   document.getElementById('tbtn').textContent='> Start';
   document.getElementById('tdisp').classList.remove('paused');
-  setBadge('Q'+q,'');
+  setBadge((G._periodLabel||'Q')+q,'');
   document.getElementById('qp'+q)?.classList.add('active');
   pushEv({type:'sys',subtype:'qtr',time:'00:00',sec:0,quarter:q,playerName:'',extra:{},icon:'>',desc:'Quarter '+q+' started'});
-  updPitch(); closeM('mo-qtr'); showToast('Q'+q+' started!');
+  updPitch(); closeM('mo-qtr'); showToast((G._periodLabel||'Q')+q+' started!');
 }
 
 function fullTime(){
@@ -1153,7 +1164,28 @@ function confirmHOff(){
 
 // ═══ LIVE UI ═══
 function updateLiveUI(){
+  // Build period progress dots based on period count
+  const periods=G.match.periods||4;
+  const bar=document.getElementById('qprog-bar');
+  if(bar){
+    bar.innerHTML='';
+    for(let i=1;i<=periods;i++){
+      const d=document.createElement('div');
+      d.className='qp'+(i===1?' active':'');
+      d.id='qp'+i;
+      bar.appendChild(d);
+    }
+  }
+  // Update period label
+  const pLabel=periods===1?'Period':periods===2?'Half':'Quarter';
+  G._periodLabel=pLabel;
   document.getElementById('sb-opp').textContent=G.match.opp;
+  // Show/hide next period button based on period count
+  const _nqb=document.getElementById('btn-next-qtr');
+  const _eqb=document.getElementById('btn-end-qtr');
+  if(_nqb) _nqb.style.display=periods<=1?'none':'inline-flex';
+  if(_eqb) _eqb.textContent='End '+(G._periodLabel||'Quarter');
+  if(_nqb) _nqb.textContent='Next '+(G._periodLabel||'Quarter');
   document.getElementById('sb-date').textContent=G.match.date||'—';
   document.getElementById('sb-venue').textContent=G.match.venue||'—';
   const gtIcons={League:'[W]',Cup:'🥇',Friendly:'🤝'};
@@ -1734,7 +1766,7 @@ async function saveFixture(){
   const eid=document.getElementById('mf-id').value;const fid=eid||'fix_'+Date.now();
   const rows=Array.from(document.getElementById('mf-player-list').children);
   const players=rows.map((r,i)=>{const q1=document.getElementById('mfq1p-'+i)?.value||'SUB';const q2=document.getElementById('mfq2p-'+i)?.value||q1;const q3=document.getElementById('mfq3p-'+i)?.value||q1;const q4=document.getElementById('mfq4p-'+i)?.value||q1;return{firstName:r.querySelector('.mf-pi-f').value.trim()||'Player',lastName:r.querySelector('.mf-pi-l').value.trim()||'',number:r.querySelector('.mf-pi-n').value||(i+1),posQ:[q1,q2,q3,q4],onPitch:q1!=='SUB',isExtra:false,stats:{}};});
-  const fixture={id:fid,opp,date:document.getElementById('mf-date').value,venue:document.getElementById('mf-venue').value,gtype:document.getElementById('mf-gtype').value,comp:document.getElementById('mf-comp').value,ql:parseInt(document.getElementById('mf-ql').value)||10,startN:parseInt(document.getElementById('mf-start').value)||5,captain:document.getElementById('mf-captain').value,players,createdAt:new Date().toISOString()};
+  const fixture={id:fid,opp,date:document.getElementById('mf-date').value,venue:document.getElementById('mf-venue').value,gtype:document.getElementById('mf-gtype').value,comp:document.getElementById('mf-comp').value,ql:parseInt(document.getElementById('mf-ql').value)||10,periods:parseInt(document.getElementById('mf-periods')?.value)||4,startN:parseInt(document.getElementById('mf-start').value)||5,captain:document.getElementById('mf-captain').value,players,createdAt:new Date().toISOString()};
   try{await window._db.set('fixtures',fid,fixture);if(eid){const i=_cachedFixtures.findIndex(x=>x.id===eid);if(i>=0)_cachedFixtures[i]=fixture;else _cachedFixtures.push(fixture);}else _cachedFixtures.push(fixture);_cachedFixtures.sort((a,b)=>a.date>b.date?1:-1);closeM('mo-fixture');renderFixtures();showToast('Fixture saved!');}catch(e){showToast('Error: '+e.message,'warn');}
 }
 async function deleteFixture(){
