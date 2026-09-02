@@ -238,6 +238,9 @@ input[readonly]{cursor:default;}
   </div>
   <div class="hbtns">
     <span class="huser" id="user-email-display"></span>
+    <select id="season-selector" onchange="onSeasonChange()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;max-width:120px;">
+      <option value="2026/27">2026/27</option>
+    </select>
     <button class="btn-hdr" id="hdr-save-btn" onclick="showSaveModal()" style="display:none;">&#128190; Save Result</button>
     <button class="btn-hdr" onclick="doSignOut()" title="Sign out">&#9211;</button>
   </div>
@@ -451,7 +454,7 @@ input[readonly]{cursor:default;}
 
 <!-- SAVED -->
 <div class="view" id="view-saved">
-  <div class="sh"><div class="st">Saved Matches</div><button class="btn btn-ghost btn-sm" onclick="clearAll()">🗑️ Clear All</button></div>
+  <div class="sh"><div class="st">Results — <span id="results-season-label">2026/27</span></div><div style="display:flex;gap:8px;"><button class="btn btn-ghost btn-sm" onclick="startNewSeason()">🗓️ New Season</button><button class="btn btn-ghost btn-sm" onclick="clearAll()">🗑️ Clear All</button></div></div>
   <div id="saved-list"><div class="empty"><div class="empty-ico">📁</div>No saved matches yet</div></div>
 </div>
 
@@ -807,7 +810,7 @@ const fname = p => (p.firstName+' '+p.lastName).trim();
 // ═══ CALLED WHEN USER SIGNS IN ═══
 window.onUserSignedIn = function(){
   loadProfilesFromDB();
-  loadMatchesFromDB();
+  loadMatchesFromDB().then(()=>loadSeasons());
   loadFixturesFromDB().then(()=>renderFixtures());
   document.getElementById('s-date').value = new Date().toISOString().split('T')[0];
   if(document.getElementById('player-list').children.length===0){
@@ -1365,9 +1368,9 @@ function renderSeasonStats(){
   const breakdown=document.getElementById('stats-breakdown');
   if(breakdown) breakdown.style.display='none';
   if(container) container.style.display='block';
-  const matches=getSaved();
+  const matches=getMatchesForSeason(_activeSeason);
   if(!matches.length){
-    if(container) container.innerHTML='<div class="empty"><div class="empty-ico">📊</div>No saved matches yet — stats will appear here after results are saved.</div>';
+    if(container) container.innerHTML=`<div class="empty"><div class="empty-ico">&#128202;</div>No stats for ${_activeSeason||'this season'} yet.</div>`;
     return;
   }
   const sortSel=document.getElementById('stats-sort');
@@ -1456,7 +1459,7 @@ function renderProfiles(search){
     return 0;
   });
   grid.innerHTML=list.map(p=>{
-    const cs=careerStats(p,matches);
+    const cs=careerStats(p,matches,_activeSeason);
     const sp=suggestPos(p,matches);
     const cls={GK:'pos-gk',DEF:'pos-def',MID:'pos-mid',FWD:'pos-fwd'}[sp]||'pos-unk';
     const init=((p.firstName?.[0]||'')+(p.lastName?.[0]||'')).toUpperCase()||p.number;
@@ -1477,10 +1480,11 @@ function renderProfiles(search){
   }).join('');
 }
 
-function careerStats(profile,matches){
+function careerStats(profile,matches,season){
   const name=fname(profile);
+  const filtered=season?(matches||[]).filter(m=>(m.season||'2025/26')===season):(matches||[]);
   let apps=0,goals=0,assists=0,saves=0,captainCount=0;
-  (matches||[]).forEach(m=>{
+  filtered.forEach(m=>{
     const app=m.events?.some(e=>e.playerName===name||(e.type==='goal'&&e.extra?.assist===name));
     if(app)apps++;
     if(m.match?.captain===name) captainCount++;
@@ -1566,7 +1570,7 @@ async function saveMatch(){
   // Reuse existing ID if already auto-saved, so we update rather than duplicate
   const matchId=G._savedMatchId||('match_'+Date.now());
   G._savedMatchId=matchId;
-  const matchData={id:matchId,label,match:{...G.match},
+  const matchData={id:matchId,label,season:_activeSeason||CURRENT_SEASON,match:{...G.match},
     players:G.players.map(p=>({...p,stats:{...p.stats||{}},posQ:[...p.posQ]})),
     events:[...G.events],score:{...G.score},shootout:G.shootout||null,savedAt:new Date().toISOString()};
   try{
@@ -1583,8 +1587,13 @@ async function saveMatch(){
 
 async function renderSaved(){
   await loadMatchesFromDB();
-  const ms=getSaved(); const list=document.getElementById('saved-list');
-  if(!ms.length){list.innerHTML=`<div class="empty"><div class="empty-ico">📁</div>No saved matches yet</div>`;return;}
+  await loadSeasons();
+  const ms=getMatchesForSeason(_activeSeason);
+  const list=document.getElementById('saved-list');
+  if(!ms.length){
+    const hasOther=getSaved().length>0;
+    list.innerHTML=`<div class="empty"><div class="empty-ico">&#127942;</div>${hasOther?'No results for '+_activeSeason+'. Try another season in the dropdown.':'No saved matches yet'}</div>`;return;
+  }
   list.innerHTML=ms.map(m=>`<div class="scard" onclick="showReport('${m.id}')">
     <div><div class="sopp">${m.match?.opp||'Opponent'}</div>
       <div class="smeta">${m.match?.date||''} ${m.match?.gtype?'· '+m.match.gtype:''} ${m.match?.comp?'· '+m.match.comp:''}</div>
@@ -2155,6 +2164,87 @@ function submitFreeKick(outcome){
   showToast(isGoal ? 'FREE KICK GOAL! ⚽' : 'Free kick logged');
 }
 
+// ═══ SEASON MANAGEMENT ═══
+const CURRENT_SEASON = '2026/27';
+let _activeSeason = CURRENT_SEASON;
+
+async function loadSeasons(){
+  // Get all unique seasons from saved matches
+  const seasons = new Set([CURRENT_SEASON]);
+  (_cachedMatches||[]).forEach(m=>{
+    const s = m.season||'2025/26';
+    seasons.add(s);
+  });
+  // Sort descending
+  const sorted = Array.from(seasons).sort((a,b)=>b.localeCompare(a));
+  const sel = document.getElementById('season-selector');
+  if(!sel) return;
+  sel.innerHTML = sorted.map(s=>`<option value="${s}" ${s===_activeSeason?'selected':''}>${s}</option>`).join('');
+}
+
+function onSeasonChange(){
+  const sel = document.getElementById('season-selector');
+  if(!sel) return;
+  _activeSeason = sel.value;
+  // Update season labels
+  const rl = document.getElementById('results-season-label');
+  const sl = document.getElementById('stats-season-label');
+  if(rl) rl.textContent = _activeSeason;
+  if(sl) sl.textContent = _activeSeason;
+  // Refresh views
+  renderSaved();
+  renderSeasonStats();
+}
+
+function getMatchesForSeason(season){
+  return (_cachedMatches||[]).filter(m=>{
+    const ms = m.season || '2025/26';
+    return ms === season;
+  });
+}
+
+async function startNewSeason(){
+  const currentYear = new Date().getFullYear();
+  const nextSeason = currentYear+'/'+(String(currentYear+1).slice(-2));
+  const prevSeason = (currentYear-1)+'/'+(String(currentYear).slice(-2));
+
+  if(!confirm(`Start a new season?
+
+All current matches will be archived under "${prevSeason}" and your stats will reset for "${nextSeason}".
+
+This cannot be undone.`)) return;
+
+  // Label all current unarchived matches with previous season
+  const unarchived = (_cachedMatches||[]).filter(m=>!m.season||m.season===CURRENT_SEASON);
+  if(unarchived.length){
+    showToast('Archiving '+unarchived.length+' matches...');
+    for(const m of unarchived){
+      try{
+        const updated = {...m, season: prevSeason};
+        await window._db.set('matches', m.id, updated);
+        const idx = _cachedMatches.findIndex(x=>x.id===m.id);
+        if(idx>=0) _cachedMatches[idx] = updated;
+      }catch(e){ console.error('Archive error:', e.message); }
+    }
+  }
+
+  // Switch to new season
+  _activeSeason = nextSeason;
+  const sel = document.getElementById('season-selector');
+  if(sel){
+    // Add new season option if not present
+    const exists = Array.from(sel.options).some(o=>o.value===nextSeason);
+    if(!exists){
+      const opt = document.createElement('option');
+      opt.value = nextSeason; opt.textContent = nextSeason;
+      sel.insertBefore(opt, sel.firstChild);
+    }
+    sel.value = nextSeason;
+  }
+  onSeasonChange();
+  showToast('New season '+nextSeason+' started!');
+}
+
 // ═══ AUTO SAVE ON FULL TIME ═══
 async function autoSaveMatch(){
   if(!G.started) return;
@@ -2165,6 +2255,7 @@ async function autoSaveMatch(){
     const matchData={
       id:matchId,
       label:G.match.opp+' (Auto-saved)',
+      season:_activeSeason||CURRENT_SEASON,
       match:{...G.match},
       players:G.players.map(p=>({...p,stats:{...p.stats||{}},posQ:[...p.posQ]})),
       events:[...G.events],
