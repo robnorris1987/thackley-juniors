@@ -1042,9 +1042,43 @@ async function loadMatchesFromDB(){
 }
 
 // ═══ TABS ═══
+// ═══ WAKE LOCK (keep screen on during live match) ═══
+let _wakeLock = null;
+
+async function requestWakeLock(){
+  if(!('wakeLock' in navigator)) return;
+  try{
+    _wakeLock = await navigator.wakeLock.request('screen');
+    _wakeLock.addEventListener('release', ()=>{ _wakeLock=null; });
+    console.log('Wake lock active - screen will stay on');
+  } catch(e){
+    console.log('Wake lock not available:', e.message);
+  }
+}
+
+function releaseWakeLock(){
+  if(_wakeLock){
+    _wakeLock.release();
+    _wakeLock=null;
+  }
+}
+
+// Re-acquire wake lock when page becomes visible again (e.g. after switching apps)
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible'){
+    const liveTab=document.querySelector('.nav-tab[data-tab="live"]');
+    if(liveTab&&liveTab.classList.contains('active')) requestWakeLock();
+  } else {
+    releaseWakeLock();
+  }
+});
+
 function switchTab(t){
   document.querySelectorAll('.nav-tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));
   document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+t));
+  // Wake lock: on when Live tab active, off otherwise
+  if(t==='live') requestWakeLock();
+  else releaseWakeLock();
   if(t==='stats') renderSeasonStats();
   if(t==='profiles') renderProfiles();
   if(t==='saved') renderSaved();
